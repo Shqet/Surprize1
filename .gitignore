@@ -600,3 +600,5 @@ htmlcov
 
 *ui.bak*
 *7z
+*.bin	
+*.txt
