@@ -597,3 +597,5 @@ venv.bak/
 # Coverage
 .coverage
 htmlcov
+
+*.ui.bak.*
