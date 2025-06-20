@@ -4,7 +4,7 @@ from typing import List, Tuple
 from PyQt6.QtCore import pyqtSignal, QObject
 
 
-class ModelGenerateTrajectory(QObject):
+class Model(QObject):
     trajectory_changed = pyqtSignal(list)
 
     def __init__(self, g: float = 9.81, dt: float = 0.1) -> None:
@@ -81,3 +81,7 @@ class ModelGenerateTrajectory(QObject):
 
     def get_trajectory(self):
         return self.trajectory
+
+    def set_trajectory(self, trajectory:List[Tuple[float, float, float]]):
+        self.trajectory = trajectory
+        self.trajectory_changed.emit(self.trajectory)

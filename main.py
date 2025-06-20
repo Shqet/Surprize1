@@ -1,18 +1,19 @@
 import sys
 
-from PyQt6.QtWidgets import QApplication
-
-from GenerateTrajectory.Controller_GenerateTrajectory import ControllerGenerateTrajectory
-from GenerateTrajectory.Model_GenerateTrajectory import ModelGenerateTrajectory
-from GenerateTrajectory.ViewGenerateTrajectory import ViewGenerateTrajectory
+from PyQt6 import QtWidgets
+from MVC.Controller import Controller
+from MVC.Model import Model
+from MVC.View import View
 
 if __name__ == "__main__":
 
-    app = QApplication(sys.argv)
+    app = QtWidgets.QApplication(sys.argv)
 
-    model = ModelGenerateTrajectory()
-    view = ViewGenerateTrajectory()
-    controller = ControllerGenerateTrajectory(model, view)
+    model = Model()
+    view = View()
+    main_form  = QtWidgets.QMainWindow()
+    view.setupUi(main_form)
+    controller = Controller(model, view)
 
-    view.show()
+    controller.show()
     sys.exit(app.exec())
