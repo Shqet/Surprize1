@@ -18,12 +18,12 @@ class Controller(QObject):
 
 
         self.model.trajectory_changed.connect(self.view.update_trajectory)
-        self.view.p_generateTrajectory.GTO.pB_calculate.clicked.connect(self.calculate_trajectory)
+
         self.view.a_loadTrajectory.triggered.connect(self.load_trajectory)
         self.view.a_saveTrajectory.triggered.connect(self.save_trajectory)
         self.view.a_showGenerateTrajectoryPage.triggered.connect(self.view.show_generate_trajectory_page)
         self.view.a_showTranslation.triggered.connect(self.view.show_translate_page)
-
+        self.view.connect_to_change_trajectory_parameters(self.calculate_trajectory)
         self.calculate_trajectory()
 
     def calculate_trajectory(self):
@@ -87,7 +87,7 @@ class Controller(QObject):
                 self.view.p_generateTrajectory.GTO.dSB_startAboveAngle.setValue(angle_target)
                 self.view.p_generateTrajectory.GTO.dSB_maneuverability.setValue(maneuverability)
                 self.view.p_generateTrajectory.GTO.dSB_dragCoefficient.setValue(drag_coefficient)
-            self.view.set_opened_filename(file_path.split("/")[-1])
+            self.view.set_opened_filename(file_path)
                 # self.model.compute_trajectory(distance, v0, angle_surface, angle_target, maneuverability, drag_coefficient)
 
     def save_trajectory(self):
@@ -108,7 +108,7 @@ class Controller(QObject):
                 #     file.write("0.0,0.0,0.0\n")
                 for point in self.model.get_trajectory():
                     file.write(f"{point[0]},{point[1]},{point[2]}\n")
-            self.view.set_opened_filename(save_path.split("/")[-1])
+            self.view.set_opened_filename(save_path)
             QMessageBox.information(
                 self.view.form,
                 "Внимание!",

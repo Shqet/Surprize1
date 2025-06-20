@@ -5,9 +5,23 @@ class View(MainFormOptions):
     def setupUi(self, form):
         super().setupUi(form)
         self.form = form
+        self.trajectory_parameters = []
+        self.trajectory_parameters.append(self.p_generateTrajectory.GTO.dSB_distance)
+        self.trajectory_parameters.append(self.p_generateTrajectory.GTO.dSB_startV)
+        self.trajectory_parameters.append(self.p_generateTrajectory.GTO.dSB_startHorizontalAngle)
+        self.trajectory_parameters.append(self.p_generateTrajectory.GTO.dSB_startAboveAngle)
+        self.trajectory_parameters.append(self.p_generateTrajectory.GTO.dSB_maneuverability)
+        self.trajectory_parameters.append(self.p_generateTrajectory.GTO.dSB_dragCoefficient)
+        self.show_generate_trajectory_page()
+
+    def connect_to_change_trajectory_parameters(self, slot):
+        for parameter in self.trajectory_parameters:
+            parameter.editingFinished.connect(slot)
 
     def show(self):
         self.form.show()
+
+
 
 
 
@@ -53,12 +67,13 @@ class View(MainFormOptions):
     def show_generate_trajectory_page(self):
         self.stackedWidget.setCurrentWidget(self.p_generateTrajectory)
 
+
     def show_translate_page(self):
         self.stackedWidget.setCurrentWidget(self.p_translateSignal)
 
     def set_opened_filename(self, filename:str):
-        self.p_generateTrajectory.GTO.l_openedFileName.setText(filename)
-
+        self.p_generateTrajectory.GTO.l_openedFile.setText(filename)
+        # pass
 if __name__ == "__main__":
     import sys
     app = QtWidgets.QApplication(sys.argv)
