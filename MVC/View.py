@@ -1,4 +1,6 @@
 from PyQt6 import QtWidgets
+from PyQt6 import QtGui
+
 from UI_Options.MainForm_Options import MainFormOptions
 
 class View(MainFormOptions):
@@ -13,6 +15,9 @@ class View(MainFormOptions):
         self.trajectory_parameters.append(self.p_generateTrajectory.GTO.dSB_maneuverability)
         self.trajectory_parameters.append(self.p_generateTrajectory.GTO.dSB_dragCoefficient)
         self.show_generate_trajectory_page()
+
+    def setup_icon(self, window_icon: QtGui.QIcon = None):
+        self.form.setWindowIcon(window_icon)
 
     def connect_to_change_trajectory_parameters(self, slot):
         for parameter in self.trajectory_parameters:
@@ -66,10 +71,12 @@ class View(MainFormOptions):
 
     def show_generate_trajectory_page(self):
         self.stackedWidget.setCurrentWidget(self.p_generateTrajectory)
+        self.form.setWindowTitle("Генерация траектории")
 
 
     def show_translate_page(self):
         self.stackedWidget.setCurrentWidget(self.p_translateSignal)
+        self.form.setWindowTitle("Трансляция")
 
     def set_opened_filename(self, filename:str):
         self.p_generateTrajectory.GTO.l_openedFile.setText(filename)
