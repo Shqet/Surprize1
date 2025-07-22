@@ -6,8 +6,6 @@ from GPS.coord_transformation import CoordinateSystem, generate_coordinate
 
 
 def use_one_hack():
-
-
     start_time = datetime(2025, 2, 12, 0, 0, 0)
     start_real_time = datetime.now()
 
@@ -36,18 +34,7 @@ def use_one_hack():
         )
         hackRFRunner.start()
 
-        # hackRFRunner.start()
 
-        if output_file == "nmea_strings.bin":
-            # nmea_file="nmea_strings.txt"
-            output_file = "nmea_strings2.bin"
-            # device_index = 1
-        else:
-            # nmea_file="nmea_strings.txt"
-            output_file = "nmea_strings.bin"
-            # device_index = 0
-        # while hackRFRunner.is_running():
-        #     pass  # или time.sleep(1)
 
         delta_start_time = datetime.now() - start_real_time
         GPSrunner=GPSProcessRunner(
@@ -60,24 +47,10 @@ def use_one_hack():
         )
         GPSrunner.start()
 
-        # try:
-        #     GPSrunner.start()
-        #     while GPSrunner.is_running():
-        #         time.sleep(0.01)
-        #         print("Процесс работает...")
-        #
-        #
-        # except Exception as e:
-        #     print("Ошибка:", e)
-        time_end = datetime.now()
-        # time.sleep(1 - (time_end - time_start).total_seconds())
         hackRFRunner.wait()
 
         GPSrunner.wait()
 
-        # time_end = datetime.now()
-        # start_time += time_end-time_start
-        # time.sleep(2-(time_end-time_start).total_seconds())
 
 if __name__ == "__main__":
     generate_coordinate(1)

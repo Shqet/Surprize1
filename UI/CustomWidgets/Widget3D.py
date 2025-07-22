@@ -5,7 +5,7 @@ from PyQt6 import QtGui
 from PyQt6 import QtWidgets
 from pyqtgraph.opengl import GLViewWidget, GLLinePlotItem, GLGridItem
 import pyqtgraph.opengl as gl
-
+from pyqtgraph.opengl import GLScatterPlotItem
 
 def rollingUp(value:float):
     if value == 0:
@@ -41,6 +41,24 @@ class Widget3D(QWidget):
 
         self._init_grid()
 
+        self.current_position_marker = GLScatterPlotItem(pos=np.array([[0, 0, 0]]),
+                                                         size=20,
+                                                         color=(0, 1, 0, 1))
+        self.view.addItem(self.current_position_marker)
+        self.current_position_marker.setVisible(False)
+
+    def update_position_marker(self, position: tuple[float, float, float]):
+        """
+        Обновляет положение тела (точки) в 3D-сцене.
+        """
+        pos_np = np.array([position], dtype=np.float32)
+        self.current_position_marker.setData(pos=pos_np)
+
+    def start_translation(self):
+        self.current_position_marker.setVisible(True)
+
+    def stop_translation(self):
+        self.current_position_marker.setVisible(False)
 
     def _init_grid(self):
         # Сетка по X, Y, Z

@@ -28,7 +28,7 @@ class MachineClient:
             1: "Маховик",
             2: "Режим работы ЧПУ",
             3: "Готовность ЧПУ",
-            # Добавь остальные сигналы по необходимости
+            # Добавляй остальные сигналы по необходимости
         }
 
     def connect(self):
@@ -138,6 +138,15 @@ class MachineClient:
         time_str = header["time_str"]
         out = ""
 
+        if ptype == 0xFFFF:  # PASSPORT_IAMALIVE
+            self.alive_packets_from_server += 1
+            self.g_packetcnt = (self.g_packetcnt + 1) % 256
+            self.sock.send(struct.pack("B", self.g_packetcnt))
+            out = f"[KEEPALIVE] {time_str} Ответ отправлен. Счётчик: {self.g_packetcnt}"
+            print(out, end="\r", flush=True)
+            return  # Не пишем в лог
+
+        # Обработка остальных пакетов
         if ptype == 0:
             text = payload[2:].decode("koi8-r", errors="ignore").strip()
             out = f"{time_str} OPEN {text}"
@@ -188,11 +197,6 @@ class MachineClient:
         elif ptype == 13:
             text = payload[2:].decode("koi8-r", errors="ignore").strip()
             out = f"{time_str} EVENT {text}"
-        elif ptype == 0xFFFF:
-            self.alive_packets_from_server += 1
-            self.g_packetcnt = (self.g_packetcnt + 1) % 256
-            self.sock.send(struct.pack("B", self.g_packetcnt))
-            out = f"[KEEPALIVE] {time_str} Ответ отправлен. Счётчик: {self.g_packetcnt}"
         else:
             out = f"{time_str} UNKNOWN TYPE {ptype}"
 

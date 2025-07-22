@@ -33,15 +33,12 @@
     <item row="0" column="0">
      <widget class="QStackedWidget" name="stackedWidget">
       <property name="currentIndex">
-       <number>0</number>
+       <number>2</number>
       </property>
       <widget class="GenerateTrajectoryOptions" name="p_generateTrajectory"/>
-      <widget class="QWidget" name="p_translateSignal">
-       <layout class="QGridLayout" name="gridLayout_3">
-        <item row="0" column="0">
-         <widget class="Widget3D" name="widget" native="true"/>
-        </item>
-       </layout>
+      <widget class="NewGenerateTrajectoryOptions" name="p_newGenerateTrajectory"/>
+      <widget class="TranslateTrajectoryOptions" name="p_translateSignal">
+       <layout class="QGridLayout" name="gridLayout_3"/>
       </widget>
      </widget>
     </item>
@@ -91,15 +88,21 @@
  </widget>
  <customwidgets>
   <customwidget>
-   <class>Widget3D</class>
-   <extends>QWidget</extends>
-   <header location="global">UI.CustomWidgets.Widget3D.h</header>
-   <container>1</container>
-  </customwidget>
-  <customwidget>
    <class>GenerateTrajectoryOptions</class>
    <extends>QWidget</extends>
    <header>UI_Options.GenerateTrajectory_Options.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>NewGenerateTrajectoryOptions</class>
+   <extends>QWidget</extends>
+   <header>UI_Options.NewGenerateTrajectory_Options.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>TranslateTrajectoryOptions</class>
+   <extends>QWidget</extends>
+   <header>UI_Options.TranslateTrajectory_Options.h</header>
    <container>1</container>
   </customwidget>
  </customwidgets>

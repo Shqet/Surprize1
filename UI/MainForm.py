@@ -24,13 +24,13 @@ class Ui_MainWindow(object):
         self.p_generateTrajectory = GenerateTrajectoryOptions()
         self.p_generateTrajectory.setObjectName("p_generateTrajectory")
         self.stackedWidget.addWidget(self.p_generateTrajectory)
-        self.p_translateSignal = QtWidgets.QWidget()
+        self.p_newGenerateTrajectory = NewGenerateTrajectoryOptions()
+        self.p_newGenerateTrajectory.setObjectName("p_newGenerateTrajectory")
+        self.stackedWidget.addWidget(self.p_newGenerateTrajectory)
+        self.p_translateSignal = TranslateTrajectoryOptions()
         self.p_translateSignal.setObjectName("p_translateSignal")
         self.gridLayout_3 = QtWidgets.QGridLayout(self.p_translateSignal)
         self.gridLayout_3.setObjectName("gridLayout_3")
-        self.widget = Widget3D(parent=self.p_translateSignal)
-        self.widget.setObjectName("widget")
-        self.gridLayout_3.addWidget(self.widget, 0, 0, 1, 1)
         self.stackedWidget.addWidget(self.p_translateSignal)
         self.gridLayout.addWidget(self.stackedWidget, 0, 0, 1, 1)
         MainWindow.setCentralWidget(self.centralwidget)
@@ -58,7 +58,7 @@ class Ui_MainWindow(object):
         self.menubar.addAction(self.menu.menuAction())
 
         self.retranslateUi(MainWindow)
-        self.stackedWidget.setCurrentIndex(0)
+        self.stackedWidget.setCurrentIndex(2)
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
 
     def retranslateUi(self, MainWindow):
@@ -69,8 +69,9 @@ class Ui_MainWindow(object):
         self.a_loadTrajectory.setText(_translate("MainWindow", "Загрузить траекторию"))
         self.a_showTranslation.setText(_translate("MainWindow", "Трансляция"))
         self.a_saveTrajectory.setText(_translate("MainWindow", "Сохранить траекторию"))
-from UI.CustomWidgets.Widget3D import Widget3D
 from UI_Options.GenerateTrajectory_Options import GenerateTrajectoryOptions
+from UI_Options.NewGenerateTrajectory_Options import NewGenerateTrajectoryOptions
+from UI_Options.TranslateTrajectory_Options import TranslateTrajectoryOptions
 
 
 if __name__ == "__main__":

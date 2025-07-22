@@ -1,4 +1,5 @@
 import re
+import sys
 import time
 import os
 import subprocess
@@ -39,9 +40,15 @@ class GPSProcessRunner:
         :param sim_dir: Папка, где лежит gps-sdr-sim.exe и входные файлы
         :param start_time: Время начала симуляции в формате 'YYYY/MM/DD,HH:MM:SS'
         """
-        self.script_dir = os.path.dirname(os.path.abspath(__file__))
-        self.sim_dir = os.path.join(self.script_dir, sim_dir)
+
+        if getattr(sys, 'frozen', False):
+            base_dir = sys._MEIPASS
+        else:
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+
+        self.sim_dir = os.path.join(base_dir, "GPS", sim_dir)
         self.executable = os.path.join(self.sim_dir, "gps-sdr-sim.exe")
+
 
         self.ephemeris_file = os.path.join(self.sim_dir, ephemeris_file)
         self.nmea_file = os.path.join(self.sim_dir, nmea_file)

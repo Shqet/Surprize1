@@ -1,7 +1,8 @@
 import numpy as np
 from typing import List, Tuple
-
+from datetime import datetime, timedelta
 from PyQt6.QtCore import pyqtSignal, QObject
+from scipy.integrate import solve_ivp
 
 
 class Model(QObject):
@@ -78,118 +79,115 @@ class Model(QObject):
         self.trajectory = trajectory
         return trajectory
 
-    def simulate_guided_trajectory(
-            m: float,  # масса тела, кг
-            S: float,  # лобовая площадь, м²
-            C_D: float,  # коэффициент аэродинамического сопротивления
-            start: Tuple[float, float, float],  # начальная точка (x, y, z)
-            target: Tuple[float, float, float],  # точка назначения (x, y, z)
-            v0: Tuple[float, float, float],  # начальная скорость (vx, vy, vz)
-            g: float = 9.81,  # ускорение свободного падения, м/с²
-            wind_zones: Optional[List[Tuple[float, float, Tuple[float, float, float]]]] = None,
-            k_c: float = 2.0,  # максимальное корректирующее ускорение, м/с²
-            p: float = 2  # степень убывания управляющего ускорения
-    ) -> List[Tuple[float, float, float]]:
+    import numpy as np
+
+    def simulate_guided_flight_with_strong_control(self,
+                                                   r0, r_target, v0, theta0_deg, phi0_deg,
+                                                   mass, S, C_D, rho, l_m,
+                                                   omega_spin_0, k_cp, k_guidance,
+                                                   Ix=0.01, Iy=0.002, Iz=0.002,
+                                                   dt=0.005, g=9.81
+                                                   ):
         """
-        Симулирует траекторию управляемого тела с аэродинамическим торможением,
-        корректировкой направления и учётом ветра. Возвращает список координат
-        центра масс до достижения высоты целевой точки.
+        Сбалансированная модель полета снаряда с уравнениями Эйлера (10.9) и активным управлением.
+        Включает ограничения, достаточные для стабильности, но позволяющие маневрировать.
         """
 
-        # Атмосферные параметры
-        rho_0: float = 1.225  # плотность воздуха на уровне моря, кг/м³
-        H: float = 8500.0  # масштабная высота атмосферы, м
-        v0_mag: float = np.linalg.norm(v0)  # модуль начальной скорости
+        r = np.array(r0, dtype=np.float64)
+        traj = [tuple(r)]
 
-        def air_density(z: float) -> float:
-            """Возвращает плотность воздуха в зависимости от высоты."""
-            return rho_0 * np.exp(-z / H)
+        theta = np.radians(theta0_deg)
+        phi = np.radians(phi0_deg)
+        dir0 = np.array([
+            np.cos(theta) * np.cos(phi),
+            np.cos(theta) * np.sin(phi),
+            np.sin(theta)
+        ])
+        v = v0 * dir0
 
-        def wind_at_altitude(z: float) -> np.ndarray:
-            """
-            Возвращает вектор ветра на данной высоте.
-            Если высота попадает в одну из заданных зон, применяется соответствующий ветер.
-            """
-            if wind_zones:
-                for z_min, z_max, wind_vec in wind_zones:
-                    if z_min <= z <= z_max:
-                        return np.array(wind_vec, dtype=np.float64)
-            return np.zeros(3)
+        # Угловые скорости
+        omega_x = omega_spin_0
+        omega_y = omega_z = 0.0
+        # Отклонения ориентации
+        delta_y = delta_z = 0.0
 
-        def dynamics(t: float, Y: np.ndarray) -> List[float]:
-            """
-            Основная функция для интегратора. Вычисляет производные
-            по времени для положения и скорости тела.
-            """
-            # Распаковка текущего состояния
-            x, y, z, vx, vy, vz = Y
-            pos: np.ndarray = np.array([x, y, z], dtype=np.float64)
-            vel: np.ndarray = np.array([vx, vy, vz], dtype=np.float64)
-            v_mag: float = np.linalg.norm(vel)
+        z_target = r_target[2]
+        has_reached_apex = False
 
-            # Относительная скорость с учётом ветра
-            wind: np.ndarray = wind_at_altitude(z)
-            v_rel: np.ndarray = vel - wind
-            v_rel_mag: float = np.linalg.norm(v_rel)
+        for step in range(200000):
+            t = step * dt
+            speed = np.linalg.norm(v)
+            if speed < 1e-3:
+                break
 
-            # Аэродинамическое сопротивление
-            if v_rel_mag > 0:
-                rho: float = air_density(z)
-                F_drag: np.ndarray = 0.5 * rho * C_D * S * v_rel_mag * v_rel
-                a_drag: np.ndarray = -F_drag / m
+            # Аэродинамические и управляющие моменты
+            Mx = -Ix * k_cp * omega_x
+            My_aero = -rho * speed ** 2 * S * l_m * delta_y / 2
+            Mz_aero = -rho * speed ** 2 * S * l_m * delta_z / 2
+
+            to_target = np.array(r_target) - r
+            to_target /= np.linalg.norm(to_target)
+            velocity_dir = v / speed
+            error = to_target - velocity_dir
+            error = np.clip(error, -1.0, 1.0)  # до ±1 рад (≈ 57°)
+
+            My_control = -k_guidance * error[1]
+            Mz_control = -k_guidance * error[2]
+            My = My_aero + My_control
+            Mz = Mz_aero + Mz_control
+
+            # Уравнения Эйлера
+            domega_x = Mx / Ix
+            domega_y = (My - (Iz - Ix) * omega_z * omega_x) / Iy
+            domega_z = (Mz - (Ix - Iy) * omega_x * omega_y) / Iz
+
+            if not np.isfinite(domega_y) or not np.isfinite(domega_z):
+                break
+
+            omega_x += domega_x * dt
+            omega_y += domega_y * dt
+            omega_z += domega_z * dt
+
+            # Ограничения на угловые скорости
+            omega_x = np.clip(omega_x, -15000, 15000)
+            omega_y = np.clip(omega_y, -2000, 2000)
+            omega_z = np.clip(omega_z, -2000, 2000)
+
+            # Интеграция углов ориентации
+            delta_y += omega_y * dt
+            delta_z += omega_z * dt
+
+            # Ограничения на углы ориентации
+            delta_y = np.clip(delta_y, -1.0, 1.0)
+            delta_z = np.clip(delta_z, -1.0, 1.0)
+
+            # Ось тела
+            body_dir = velocity_dir + np.array([0, delta_y, delta_z])
+            norm_bd = np.linalg.norm(body_dir)
+            if norm_bd < 1e-6:
+                body_dir = velocity_dir
             else:
-                a_drag = np.zeros(3)
+                body_dir /= norm_bd
 
-            # Сила тяжести (вниз)
-            a_gravity: np.ndarray = np.array([0, 0, -g], dtype=np.float64)
+            # Силы
+            F_aero = -0.5 * rho * C_D * S * speed * body_dir
+            F_grav = np.array([0, 0, -mass * g])
+            a_lin = (F_aero + F_grav) / mass
 
-            # Корректирующее боковое ускорение, направленное в сторону цели
-            d_target: np.ndarray = np.array(target) - pos
+            # Интеграция поступательного движения
+            v += a_lin * dt
+            r += v * dt
+            traj.append(tuple(r))
 
-            if v_mag > 1e-2:
-                v_dir: np.ndarray = vel / v_mag
-                d_proj: np.ndarray = d_target - np.dot(d_target, v_dir) * v_dir  # перпендикуляр к скорости
-                d_proj_norm: float = np.linalg.norm(d_proj)
+            # Условие завершения
+            if not has_reached_apex and v[2] < 0:
+                has_reached_apex = True
+            if has_reached_apex and r[2] <= z_target:
+                break
 
-                if d_proj_norm > 1e-6:
-                    acc_dir: np.ndarray = d_proj / d_proj_norm
-                    scale: float = (v_mag / v0_mag) ** p
-                    a_corr: np.ndarray = k_c * min(1.0, scale) * acc_dir
-                else:
-                    a_corr = np.zeros(3)
-            else:
-                a_corr = np.zeros(3)
-
-            # Общий вектор ускорения
-            a_total: np.ndarray = a_drag + a_gravity + a_corr
-            return [vx, vy, vz, *a_total]
-
-        def reach_target_altitude(t: float, Y: np.ndarray) -> float:
-            """
-            Условие завершения симуляции: когда тело достигает высоты целевой точки.
-            """
-            return Y[2] - target[2]
-
-        reach_target_altitude.terminal = True
-        reach_target_altitude.direction = -1
-
-        # Начальные условия
-        Y0: List[float] = [*start, *v0]
-
-        # Интеграция системы уравнений
-        sol = solve_ivp(
-            fun=dynamics,
-            t_span=(0, 1e3),  # большое время, реальное завершение — через event
-            y0=Y0,
-            events=reach_target_altitude,
-            max_step=0.05,  # шаг по времени (точность)
-            rtol=1e-6,
-            atol=1e-8,
-        )
-
-        # Возвращаем список координат траектории
-        return list(zip(sol.y[0], sol.y[1], sol.y[2]))
-
+        self.trajectory = traj
+        self.trajectory_changed.emit(traj)
+        return traj
 
 
 
@@ -199,3 +197,93 @@ class Model(QObject):
     def set_trajectory(self, trajectory:List[Tuple[float, float, float]]):
         self.trajectory = trajectory
         self.trajectory_changed.emit(self.trajectory)
+
+    def export_trajectory_to_nmea(self, step_sec: float = 0.1, delay_sec: float = 0.0):
+        """
+        Экспорт текущей траектории в NMEA-формат с учётом задержки.
+        Файл сохраняется в ту же папку, где лежит gps-sdr-sim.exe.
+        """
+        if not self.trajectory:
+            raise ValueError("Траектория пуста")
+
+        import os
+        import sys
+        from datetime import datetime, timedelta, timezone
+
+        # Определим путь к GPS_SDR_SIM
+        if getattr(sys, 'frozen', False):
+            base_dir = sys._MEIPASS
+        else:
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+
+        sim_dir = os.path.join(base_dir, "GPS","GPS_SDR_SIM")
+        filepath = os.path.join(sim_dir, "nmea_strings.txt")
+
+        # Убедимся, что папка существует (на случай запуска не из PyInstaller)
+        os.makedirs(sim_dir, exist_ok=True)
+
+        def to_nmea_latlon(lat, lon):
+            lat_deg = int(abs(lat))
+            lat_min = (abs(lat) - lat_deg) * 60
+            lat_str = f"{lat_deg:02d}{lat_min:07.4f},{'N' if lat >= 0 else 'S'}"
+
+            lon_deg = int(abs(lon))
+            lon_min = (abs(lon) - lon_deg) * 60
+            lon_str = f"{lon_deg:03d}{lon_min:07.4f},{'E' if lon >= 0 else 'W'}"
+            return lat_str, lon_str
+
+        start_time = datetime.now(timezone.utc)
+
+        with open(filepath, 'w') as f:
+            for i, (x, y, z) in enumerate(self.trajectory):
+                lat, lon, h = 55.0 + x * 1e-5, 37.0 + y * 1e-5, z
+                t = start_time + timedelta(seconds=i * step_sec)
+                t_str = t.strftime("%H%M%S.%f")[:-4]
+                lat_str, lon_str = to_nmea_latlon(lat, lon)
+                f.write(f"$GPGGA,{t_str},{lat_str},{lon_str},1,08,0.9,{h:.1f},M,0.0,M,,*47\n")
+
+        print(f"[+] Экспортировано в {filepath}")
+        self.prepend_static_padding_to_nmea(filepath, delay_sec=delay_sec, step_sec=step_sec)
+
+    @staticmethod
+    def prepend_static_padding_to_nmea(
+            filepath: str = "GPS_SDR_SIM/nmea_strings.txt",
+            delay_sec: float = 30.0,
+            step_sec: float = 0.1
+    ):
+        """
+        Дополняет nmea_strings.txt в начале фиксированными строками, чтобы добавить задержку delay_sec.
+        """
+        with open(filepath, "r") as f:
+            lines = f.readlines()
+
+        target_lines = int(delay_sec / step_sec)
+
+        # if len(lines) >= target_lines:
+        #     print(f"[=] Уже {len(lines)} строк, не требует дополнения.")
+        #     return
+
+        # Извлечём первую строку как шаблон
+        first_line = lines[0].strip()
+        time_str = first_line.split(",")[1]  # HHMMSS или HHMMSS.ss
+
+        # Определим базовое UTC время из первой строки
+        base_time = datetime.strptime(time_str[:6], "%H%M%S")
+
+        # Остальные поля
+        gga_rest = ",".join(first_line.split(",")[2:])
+
+        missing_lines = target_lines
+
+        # Генерация новых строк
+        padding = []
+        for i in range(missing_lines, 0, -1):
+            t = base_time - timedelta(seconds=i * step_sec)
+            t_str = t.strftime("%H%M%S.%f")[:-4]
+            padding.append(f"$GPGGA,{t_str},{gga_rest}\n")
+
+        # Сохраняем результат
+        with open(filepath, "w") as f:
+            f.writelines(padding + lines)
+
+        print(f"[+] Добавлено {missing_lines} статичных строк. Общее число строк: {len(padding) + len(lines)}")

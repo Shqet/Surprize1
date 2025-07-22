@@ -14,7 +14,14 @@ class View(MainFormOptions):
         self.trajectory_parameters.append(self.p_generateTrajectory.GTO.dSB_startAboveAngle)
         self.trajectory_parameters.append(self.p_generateTrajectory.GTO.dSB_maneuverability)
         self.trajectory_parameters.append(self.p_generateTrajectory.GTO.dSB_dragCoefficient)
+        self.trajectory_parameters.extend(self.p_newGenerateTrajectory.trajectory_parameters)
+
+
+
         self.show_generate_trajectory_page()
+
+
+
 
     def setup_icon(self, window_icon: QtGui.QIcon = None):
         self.form.setWindowIcon(window_icon)
@@ -35,6 +42,12 @@ class View(MainFormOptions):
         self.p_generateTrajectory.GTO.f_rearView.update_trajectory(trajectory)
         self.p_generateTrajectory.GTO.f_sideView.update_trajectory(trajectory)
         self.p_generateTrajectory.GTO.f_aboveView.update_trajectory(trajectory)
+        self.p_newGenerateTrajectory.GTO.f_3DView.update_trajectory(trajectory)
+        self.p_newGenerateTrajectory.GTO.f_rearView.update_trajectory(trajectory)
+        self.p_newGenerateTrajectory.GTO.f_sideView.update_trajectory(trajectory)
+        self.p_newGenerateTrajectory.GTO.f_aboveView.update_trajectory(trajectory)
+
+        self.p_translateSignal.GTO.widget.update_trajectory(trajectory)
 
     def get_distance(self):
         return self.p_generateTrajectory.GTO.dSB_distance.value()
@@ -66,6 +79,25 @@ class View(MainFormOptions):
         self.p_generateTrajectory.GTO.dSB_maneuverability.setValue(maneuverability)
     def set_drag_coefficient(self, drag_coefficient):
         self.p_generateTrajectory.GTO.dSB_dragCoefficient.setValue(drag_coefficient)
+
+    def ask_open_file_path(self) -> str:
+        file_path, _ = QtWidgets.QFileDialog.getOpenFileName(
+            self.form, "Загрузить траекторию", "", "TXT Files (*.txt)"
+        )
+        return file_path
+
+    def ask_save_file_path(self) -> str:
+        file_path, _ = QtWidgets.QFileDialog.getSaveFileName(
+            self.form, "Сохранить траекторию", "", "TXT Files (*.txt)"
+        )
+        return file_path
+
+    def show_error(self, message: str):
+        QtWidgets.QMessageBox.critical(self.form, "Ошибка", message)
+
+    def show_info(self, message: str):
+        QtWidgets.QMessageBox.information(self.form, "Информация", message)
+
     # def get_max_steps(self):
     #     return self.dSB_maxSteps.text()
 
