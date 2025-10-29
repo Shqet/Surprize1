@@ -46,7 +46,9 @@ class GPSProcessRunner:
         else:
             base_dir = os.path.dirname(os.path.abspath(__file__))
 
-        self.sim_dir = os.path.join(base_dir, "GPS", sim_dir)
+        self.sim_dir = os.path.join(base_dir, sim_dir)
+        # self.sim_dir = os.path.join(base_dir,"GPS", sim_dir)
+        print("self.sim_dir: ", self.sim_dir)
         self.executable = os.path.join(self.sim_dir, "gps-sdr-sim.exe")
 
 

@@ -32,6 +32,9 @@ class Ui_MainWindow(object):
         self.gridLayout_3 = QtWidgets.QGridLayout(self.p_translateSignal)
         self.gridLayout_3.setObjectName("gridLayout_3")
         self.stackedWidget.addWidget(self.p_translateSignal)
+        self.p_generateStraightTrajectory = GenerateStraightTrajectoryOptions()
+        self.p_generateStraightTrajectory.setObjectName("p_generateStraightTrajectory")
+        self.stackedWidget.addWidget(self.p_generateStraightTrajectory)
         self.gridLayout.addWidget(self.stackedWidget, 0, 0, 1, 1)
         MainWindow.setCentralWidget(self.centralwidget)
         self.menubar = QtWidgets.QMenuBar(parent=MainWindow)
@@ -51,14 +54,17 @@ class Ui_MainWindow(object):
         self.a_showTranslation.setObjectName("a_showTranslation")
         self.a_saveTrajectory = QtGui.QAction(parent=MainWindow)
         self.a_saveTrajectory.setObjectName("a_saveTrajectory")
+        self.a_showGenerateStraightTrajectory = QtGui.QAction(parent=MainWindow)
+        self.a_showGenerateStraightTrajectory.setObjectName("a_showGenerateStraightTrajectory")
         self.menu.addAction(self.a_saveTrajectory)
         self.menu.addAction(self.a_loadTrajectory)
         self.menu.addAction(self.a_showGenerateTrajectoryPage)
         self.menu.addAction(self.a_showTranslation)
+        self.menu.addAction(self.a_showGenerateStraightTrajectory)
         self.menubar.addAction(self.menu.menuAction())
 
         self.retranslateUi(MainWindow)
-        self.stackedWidget.setCurrentIndex(2)
+        self.stackedWidget.setCurrentIndex(3)
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
 
     def retranslateUi(self, MainWindow):
@@ -69,6 +75,8 @@ class Ui_MainWindow(object):
         self.a_loadTrajectory.setText(_translate("MainWindow", "Загрузить траекторию"))
         self.a_showTranslation.setText(_translate("MainWindow", "Трансляция"))
         self.a_saveTrajectory.setText(_translate("MainWindow", "Сохранить траекторию"))
+        self.a_showGenerateStraightTrajectory.setText(_translate("MainWindow", "Сгенерировать прямую траекторию"))
+from UI_Options.GenerateStraightTrajectory_Options import GenerateStraightTrajectoryOptions
 from UI_Options.GenerateTrajectory_Options import GenerateTrajectoryOptions
 from UI_Options.NewGenerateTrajectory_Options import NewGenerateTrajectoryOptions
 from UI_Options.TranslateTrajectory_Options import TranslateTrajectoryOptions

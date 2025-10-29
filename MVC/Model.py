@@ -2,36 +2,41 @@ import numpy as np
 from typing import List, Tuple
 from datetime import datetime, timedelta
 from PyQt6.QtCore import pyqtSignal, QObject
-from scipy.integrate import solve_ivp
-
+import __main__, os
 
 class Model(QObject):
     trajectory_changed = pyqtSignal(list)
+    straight_trajectory_changed = pyqtSignal(list)
 
     def __init__(self, g: float = 9.81, dt: float = 0.1) -> None:
         super().__init__()
+
+        self.straight_trajectory = None
         self.g: float = g
         self.dt: float = dt
         self.trajectory: List[Tuple[float, float, float]] = []
 
     def compute_trajectory(
-        self,
-        distance: float,
-        v0: float,
-        angle_surface_deg: float,
-        angle_target_deg: float,
-        maneuverability: float = 0.05,
-        drag_coefficient: float = 0.01
+            self,
+            distance: float,
+            v0: float,
+            angle_surface_deg: float,
+            angle_target_deg: float,
+            maneuverability: float = 0.05,
+            drag_coefficient: float = 0.01,
+            accel_phase: float = 2.0  # время разгона до v0 (секунды)
     ) -> List[Tuple[float, float, float]]:
         """
         Вычисляет траекторию от (0,0,0) до (distance, 0, 0) с маневрированием.
+        Добавлен разгон: в течение accel_phase секунд скорость возрастает от 0 до v0.
 
         :param distance: расстояние до цели по оси X
-        :param v0: начальная скорость
+        :param v0: конечная скорость после разгона
         :param angle_surface_deg: угол к горизонту (градусы)
         :param angle_target_deg: угол отклонения в горизонтальной плоскости (градусы)
         :param maneuverability: коэффициент маневренности
         :param drag_coefficient: коэффициент сопротивления воздуха
+        :param accel_phase: длительность разгона в секундах
         :return: список координат траектории
         """
 
@@ -43,41 +48,85 @@ class Model(QObject):
         theta: float = np.radians(angle_surface_deg)
         phi: float = np.radians(angle_target_deg)
 
-        # Начальный вектор скорости
-        vx = np.cos(theta) * np.cos(phi)
-        vy = np.cos(theta) * np.sin(phi)
-        vz = np.sin(theta)
-        velocity: np.ndarray = v0 * np.array([vx, vy, vz])
+        # Направление движения
+        dir_vec = np.array([
+            np.cos(theta) * np.cos(phi),
+            np.cos(theta) * np.sin(phi),
+            np.sin(theta)
+        ])
 
-        while pos[2] >= 0 and np.linalg.norm(velocity) > 1.0:
+        # Начальная скорость = 0
+        velocity: np.ndarray = np.zeros(3)
+
+        t = 0.0
+        while pos[2] >= 0 and np.linalg.norm(velocity) > 0.1 or t < accel_phase:
             pos += velocity * self.dt
             trajectory.append(tuple(pos))
 
-            # Гравитация
-            velocity[2] -= self.g * self.dt
+            # --- Разгонная фаза ---
+            if t < accel_phase:
+                # линейный рост скорости от 0 до v0
+                target_speed = v0 * (t / accel_phase)
+                current_speed = np.linalg.norm(velocity)
+                dv = target_speed - current_speed
+                if dv > 0:
+                    velocity += dir_vec * (dv / max(self.dt, 1e-9))
+            else:
+                # Гравитация
+                velocity[2] -= self.g * self.dt
 
-            # Сопротивление воздуха
-            speed = np.linalg.norm(velocity)
-            if speed > 0:
-                drag_force = drag_coefficient * velocity
-                velocity -= drag_force * self.dt
+                # Сопротивление воздуха
+                speed = np.linalg.norm(velocity)
+                if speed > 0:
+                    drag_force = drag_coefficient * velocity
+                    velocity -= drag_force * self.dt
 
-            # Маневрирование — корректировка направления без увеличения скорости
-            to_target = end_point - pos
-            dist_to_target = np.linalg.norm(to_target)
-            if dist_to_target > 1e-6:
-                to_target_unit = to_target / dist_to_target
+                # Маневрирование
+                to_target = end_point - pos
+                dist_to_target = np.linalg.norm(to_target)
+                if dist_to_target > 1e-6:
+                    to_target_unit = to_target / dist_to_target
+                    v_unit = velocity / speed
+                    correction_direction = to_target_unit - np.dot(to_target_unit, v_unit) * v_unit
 
-                v_unit = velocity / speed
-                correction_direction = to_target_unit - np.dot(to_target_unit, v_unit) * v_unit
+                    if np.linalg.norm(correction_direction) > 1e-6:
+                        correction_unit = correction_direction / np.linalg.norm(correction_direction)
+                        correction = maneuverability * speed * correction_unit
+                        velocity += correction * self.dt
 
-                if np.linalg.norm(correction_direction) > 1e-6:
-                    correction_unit = correction_direction / np.linalg.norm(correction_direction)
-                    correction = maneuverability * speed * correction_unit
-                    velocity += correction * self.dt
+            t += self.dt
+
         self.trajectory_changed.emit(trajectory)
         self.trajectory = trajectory
         return trajectory
+
+    def generate_straight_trajectory(self,speed: float, distance: float, step: float = 0.1) -> List[Tuple[float, float, float]]:
+        """
+        Генерация траектории движения по прямой.
+
+        :param speed: скорость (м/с)
+        :param distance: дистанция (м)
+        :param step: шаг по времени (сек), по умолчанию 1 секунда
+        :return: список точек [(x, y, t)]
+        """
+        trajectory = []
+        total_time = distance / speed
+        t = 0.0
+
+        while t <= total_time:
+            x = speed * t
+            trajectory.append((x, 0.0, 0.0))
+            t += step
+
+        # Добавим конечную точку точно в distance
+        if trajectory[-1][0] < distance:
+            trajectory.append((distance, 0.0, 0.0))
+        self.straight_trajectory_changed.emit(trajectory)
+        self.straight_trajectory = trajectory
+        return trajectory
+
+    def get_straight_trajectory(self):
+        return self.straight_trajectory
 
     import numpy as np
 
@@ -214,7 +263,7 @@ class Model(QObject):
         if getattr(sys, 'frozen', False):
             base_dir = sys._MEIPASS
         else:
-            base_dir = os.path.dirname(os.path.abspath(__file__))
+            base_dir = os.path.dirname(os.path.abspath(__main__.__file__))
 
         sim_dir = os.path.join(base_dir, "GPS","GPS_SDR_SIM")
         filepath = os.path.join(sim_dir, "nmea_strings.txt")

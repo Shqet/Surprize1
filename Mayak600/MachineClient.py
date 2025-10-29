@@ -6,6 +6,15 @@ import shutil
 import os
 from datetime import datetime
 
+from Mayak600.DataParser import _split_cstrings
+
+import sys
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+except Exception:
+    pass
+
+
 class MachineClient:
     def __init__(self, server_ip="192.168.0.201", server_port=23321, keepalive_limit=12,
                  reconnect_delay=5, archives_limit_mb=5, log_dir="."):
@@ -28,9 +37,12 @@ class MachineClient:
             1: "Маховик",
             2: "Режим работы ЧПУ",
             3: "Готовность ЧПУ",
-            # Добавляй остальные сигналы по необходимости
+            4: "Пуск УП",
+            5: "Стоп УП",
+            # Добавляй остальные сигналы при необходимости
         }
 
+    # --- базовые функции подключения и рукопожатия ---
     def connect(self):
         try:
             self.sock = socket.create_connection((self.server_ip, self.server_port), timeout=5)
@@ -52,16 +64,14 @@ class MachineClient:
                 raise ValueError(f"Некорректное значение от сервера: {server_value}")
 
             signature = struct.pack("2i", 0, 1)
-            sent = self.sock.send(signature)
-            if sent != 8:
-                raise RuntimeError("Ошибка при отправке сигнатуры.")
-
+            self.sock.send(signature)
             print("[INFO] Сигнатура [0, 1] отправлена серверу.")
             return True
         except Exception as e:
             print(f"[ERROR] Handshake не удался: {e}")
             return False
 
+    # --- логирование и вспомогательные методы ---
     def open_log_file(self):
         filename = os.path.join(self.log_dir, f"passport_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.dmp")
         self.log_file = open(filename, "w", encoding="utf-8")
@@ -87,15 +97,10 @@ class MachineClient:
             return None
         signature, ptype, timestamp, length, chksum = struct.unpack("<HHI I H", data[:14])
         time_str = datetime.fromtimestamp(timestamp).strftime("%H:%M:%S")
-        return {
-            "signature": signature,
-            "type": ptype,
-            "timestamp": timestamp,
-            "time_str": time_str,
-            "length": length,
-            "chksum": chksum
-        }
+        return {"signature": signature, "type": ptype, "timestamp": timestamp,
+                "time_str": time_str, "length": length, "chksum": chksum}
 
+    # --- основной цикл чтения ---
     def handle_server_messages(self):
         try:
             self.open_log_file()
@@ -133,75 +138,97 @@ class MachineClient:
                 print("[INFO] Лог файл закрыт.")
             self.close()
 
+    # --- разбор пакетов паспорта ---
     def process_passport_packet(self, header, payload):
         ptype = header["type"]
         time_str = header["time_str"]
         out = ""
 
-        if ptype == 0xFFFF:  # PASSPORT_IAMALIVE
+        if ptype == 0xFFFF:
+            # keepalive
             self.alive_packets_from_server += 1
             self.g_packetcnt = (self.g_packetcnt + 1) % 256
             self.sock.send(struct.pack("B", self.g_packetcnt))
-            out = f"[KEEPALIVE] {time_str} Ответ отправлен. Счётчик: {self.g_packetcnt}"
-            print(out, end="\r", flush=True)
-            return  # Не пишем в лог
+            print(f"[KEEPALIVE] {time_str} Ответ отправлен. Счётчик: {self.g_packetcnt}", end="\r", flush=True)
+            return
 
-        # Обработка остальных пакетов
-        if ptype == 0:
-            text = payload[2:].decode("koi8-r", errors="ignore").strip()
-            out = f"{time_str} OPEN {text}"
-        elif ptype == 1:
-            text = payload[2:].decode("koi8-r", errors="ignore").strip()
-            out = f"{time_str} CLOSE {text}"
-        elif ptype == 2:
-            id_val = struct.unpack("<H", payload[2:4])[0]
-            text = payload[6:].decode("koi8-r", errors="ignore").strip()
-            out = f"{time_str} DATADESCRIPTION {id_val} {text}"
-        elif ptype == 3:
-            id_val, dtype, step, zip_ = struct.unpack("<H H H H", payload[2:10])
-            dtype_str = f"TEXT(7)" if dtype == 7 else f"INT({dtype})"
-            out = f"{time_str} DATATYPE {id_val} {dtype_str} step={step} zip={zip_}"
-        elif ptype == 4:
-            id_val = struct.unpack("<H", payload[2:4])[0]
-            name = self.signal_map.get(id_val, f"Signal {id_val}")
-            if len(payload) > 6:
+        try:
+            # Расшифровка типов пакетов
+            if ptype == 0:
+                text = payload[2:].decode("koi8-r", errors="ignore").strip()
+                out = f"{time_str} [OPEN] {text}"
+            elif ptype == 1:
+                text = payload[2:].decode("koi8-r", errors="ignore").strip()
+                out = f"{time_str} [CLOSE] {text}"
+            elif ptype == 2:
+                id_val = struct.unpack("<H", payload[2:4])[0]
+                text = payload[6:].decode("koi8-r", errors="ignore").strip()
+                out = f"{time_str} [DATADESCRIPTION] id={id_val} {text}"
+            elif ptype == 3:
+                id_val, dtype, step, zip_ = struct.unpack("<H H H H", payload[2:10])
+                dtype_str = f"TEXT(7)" if dtype == 7 else f"INT({dtype})"
+                out = f"{time_str} [DATATYPE] id={id_val} {dtype_str} step={step} zip={zip_}"
+            elif ptype == 4:
+                id_val = struct.unpack("<H", payload[2:4])[0]
+                name = self.signal_map.get(id_val, f"Signal {id_val}")
                 try:
-                    text = payload[6:].decode("koi8-r").strip()
-                    out = f"{time_str} DATA {id_val} {name} = {text}"
-                except UnicodeDecodeError:
+                    text = payload[6:].decode("koi8-r", errors="ignore").strip()
+                    out = f"{time_str} [DATA] {name} = {text}"
+                except Exception:
                     nums = struct.iter_unpack("<I", payload[6:])
                     numbers = " ".join(str(n[0]) for n in nums)
-                    out = f"{time_str} DATA {id_val} {name} = {numbers}"
-            else:
-                out = f"{time_str} DATA {id_val} {name}"
-        elif ptype == 5:
-            id_val = struct.unpack("<H", payload[2:4])[0]
-            out = f"{time_str} DATAOVERFLOW {id_val}"
-        elif ptype == 6:
-            out = f"{time_str} --- DATABEGIN ---"
-        elif ptype == 7:
-            out = f"{time_str} --- DATAEND ---"
-        elif ptype == 8:
-            out = f"{time_str} DATASUSPEND"
-        elif ptype == 9:
-            out = f"{time_str} DATARESUME"
-        elif ptype == 10:
-            id_val = struct.unpack("<H", payload[2:4])[0]
-            text = payload[6:].decode("koi8-r", errors="ignore").strip()
-            out = f"{time_str} DATAFILENAME {id_val} {text}"
-        elif ptype == 11:
-            text = payload[2:].decode("koi8-r", errors="ignore").strip()
-            out = f"{time_str} COMMENTARY {text}"
-        elif ptype == 12:
-            out = f"{time_str} ABORT"
-        elif ptype == 13:
-            text = payload[2:].decode("koi8-r", errors="ignore").strip()
-            out = f"{time_str} EVENT {text}"
-        else:
-            out = f"{time_str} UNKNOWN TYPE {ptype}"
+                    out = f"{time_str} [DATA] {name} = {numbers}"
+            elif ptype == 5:
+                id_val = struct.unpack("<H", payload[2:4])[0]
+                out = f"{time_str} [DATAOVERFLOW] id={id_val}"
+            elif ptype == 6:
+                out = f"{time_str} --- DATABEGIN ---"
+            elif ptype == 7:
+                out = f"{time_str} --- DATAEND ---"
+            elif ptype == 8:
+                out = f"{time_str} [DATASUSPEND]"
+            elif ptype == 9:
+                out = f"{time_str} [DATARESUME]"
+            elif ptype == 10:
+                id_val = struct.unpack("<H", payload[2:4])[0]
+                text = payload[6:].decode("koi8-r", errors="ignore").strip()
+                out = f"{time_str} [DATAFILENAME] id={id_val} {text}"
+            elif ptype == 11:  # COMMENTARY
+                fields = _split_cstrings(payload)
+                out = f"{time_str} [COMMENT] " + " | ".join(
+                    fields) if fields else f"{time_str} [COMMENT] " + payload.decode("koi8-r", errors="ignore").strip()
 
+            elif ptype == 12:
+                out = f"{time_str} [ABORT]"
+            elif ptype == 13:  # EVENT
+                fields = _split_cstrings(payload)
+                out = f"{time_str} [EVENT] " + " | ".join(
+                    fields) if fields else f"{time_str} [EVENT] raw={payload.hex(' ')}"
+
+
+
+            # elif ptype == 13:
+            #     raw_hex = payload.hex(" ")
+            #     try:
+            #         id_val = struct.unpack("<H", payload[2:4])[0]
+            #     except Exception:
+            #         id_val = -1
+            #     text = payload[6:].decode("koi8-r", errors="ignore").strip()
+            #     out = f"{time_str} [EVENT] id={id_val} {text}  | raw: {raw_hex}"
+            else:
+                raw_hex = payload.hex(" ")
+                out = f"{time_str} [UNKNOWN TYPE {ptype}] raw={raw_hex}"
+        except Exception as e:
+            out = f"{time_str} [ERROR DECODING TYPE {ptype}] {e}"
+
+        if getattr(self, "_last_line", None) == out:
+            return
+        self._last_line = out
+
+        # выводим всё в лог
         self.log(out)
 
+    # --- запуск клиента ---
     def start_listener(self):
         self.listener_thread = threading.Thread(target=self.handle_server_messages, daemon=True)
         self.listener_thread.start()
@@ -212,12 +239,10 @@ class MachineClient:
             if not self.connect():
                 time.sleep(self.reconnect_delay)
                 continue
-
             if not self.perform_handshake():
                 self.close()
                 time.sleep(self.reconnect_delay)
                 continue
-
             self.start_listener()
             self.listener_thread.join()
             print(f"[INFO] Попытка переподключения через {self.reconnect_delay} сек...")

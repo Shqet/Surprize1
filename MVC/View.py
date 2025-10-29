@@ -105,6 +105,10 @@ class View(MainFormOptions):
         self.stackedWidget.setCurrentWidget(self.p_generateTrajectory)
         self.form.setWindowTitle("Генерация траектории")
 
+    def show_generate_straight_trajectory_page(self):
+        self.stackedWidget.setCurrentWidget(self.p_generateStraightTrajectory)
+        self.form.setWindowTitle("Генерация прямой траектории")
+
 
     def show_translate_page(self):
         self.stackedWidget.setCurrentWidget(self.p_translateSignal)

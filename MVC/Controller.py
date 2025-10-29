@@ -1,8 +1,7 @@
 import time
 
 from PyQt6.QtCore import QObject, QTimer
-from PyQt6.QtWidgets import QFileDialog, QMessageBox
-from PyQt6 import QtWidgets
+
 
 from MVC.Model import Model
 from MVC.View import View
@@ -25,8 +24,13 @@ class Controller(QObject):
         self.view.a_saveTrajectory.triggered.connect(self.save_trajectory)
         self.view.a_showGenerateTrajectoryPage.triggered.connect(self.view.show_generate_trajectory_page)
         self.view.a_showTranslation.triggered.connect(self.view.show_translate_page)
+        self.view.a_showGenerateStraightTrajectory.triggered.connect(self.view.show_generate_straight_trajectory_page)
         self.view.connect_to_change_trajectory_parameters(self.calculate_trajectory)
         self.view.p_translateSignal.GTO.pB_start_translation.clicked.connect(self.start_translation)
+        # self.view.p_generateStraightTrajectory.pB_calculate_trajectory
+        self.view.p_generateStraightTrajectory.GTO.pB_generate.clicked.connect(self.calculate_straight_trajectory)
+        self.view.p_generateStraightTrajectory.GTO.pB_startTranslation.clicked.connect(self.translate_straight_trajectory)
+
         self.calculate_trajectory()
 
     def calculate_trajectory(self):
@@ -158,7 +162,7 @@ class Controller(QObject):
                 frequency=1575420000,
                 sample_rate=2600000,
                 antenna=1,
-                tx_gain=47,
+                tx_gain=10,
                 working_dir="GPS_SDR_SIM",
                 device_number=device_numbers[0]
             )
@@ -238,6 +242,60 @@ class Controller(QObject):
         QTimer.singleShot(int(delay_sec * 1000), start_position_timer)
 
 
+
+    def calculate_straight_trajectory(self):
+        speed = self.view.p_generateStraightTrajectory.GTO.dSB_speed.value()
+        distance = self.view.p_generateStraightTrajectory.GTO.dSB_distance.value()
+        trajectory = self.model.generate_straight_trajectory(speed, distance)
+        self.view.p_generateStraightTrajectory.GTO.f_3DView.update_trajectory(trajectory)
+
+    def translate_straight_trajectory(self):
+
+        from datetime import datetime
+        from GPS.console_hack_management import GPSProcessRunner, HackRFTransferRunner, get_hackrf_serial_numbers
+
+        start_time = datetime(2025, 2, 12, 0, 0, 0)
+        start_real_time = datetime.now()
+        delta_start_time = datetime.now() - start_real_time
+
+        device_numbers = get_hackrf_serial_numbers()
+        if not device_numbers:
+            self.view.show_error("HackRF не обнаружен.")
+            return
+
+        nmea_file = "nmea_strings.txt"
+        output_file = "nmea_strings.bin"
+
+        try:
+            gps_runner = GPSProcessRunner(
+                ephemeris_file="brdc0430.25n",
+                nmea_file=nmea_file,
+                bitrate=8,
+                output_file=output_file,
+                sim_dir="GPS_SDR_SIM",
+                start_time=(start_time + delta_start_time).strftime("%Y/%m/%d,%H:%M:%S")
+            )
+            gps_runner.start()
+            gps_runner.wait()
+
+            hackrf_runner = HackRFTransferRunner(
+                input_file=output_file,
+                frequency=1575420000,
+                sample_rate=2600000,
+                antenna=1,
+                tx_gain=10,
+                working_dir="GPS_SDR_SIM",
+                device_number=device_numbers[0]
+            )
+            hackrf_runner.start()
+
+            self.animate_trajectory(
+                self.view.p_generateStraightTrajectory.GTO.f_3DView,
+                self.model.get_straight_trajectory()
+            )
+
+        except Exception as e:
+            self.view.show_error(f"Ошибка трансляции: {e}")
 
 
 

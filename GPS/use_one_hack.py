@@ -27,7 +27,7 @@ def use_one_hack():
             frequency=1575420000,
             sample_rate=2600000,
             antenna=1,
-            tx_gain=0,
+            tx_gain=10,
             working_dir="GPS_SDR_SIM",
             device_number=device_numbers[device_index]
             # device_number="0000000000000000436c63dc2f0e4363"

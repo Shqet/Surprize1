@@ -33,13 +33,14 @@
     <item row="0" column="0">
      <widget class="QStackedWidget" name="stackedWidget">
       <property name="currentIndex">
-       <number>2</number>
+       <number>3</number>
       </property>
       <widget class="GenerateTrajectoryOptions" name="p_generateTrajectory"/>
       <widget class="NewGenerateTrajectoryOptions" name="p_newGenerateTrajectory"/>
       <widget class="TranslateTrajectoryOptions" name="p_translateSignal">
        <layout class="QGridLayout" name="gridLayout_3"/>
       </widget>
+      <widget class="GenerateStraightTrajectoryOptions" name="p_generateStraightTrajectory"/>
      </widget>
     </item>
    </layout>
@@ -61,6 +62,7 @@
     <addaction name="a_loadTrajectory"/>
     <addaction name="a_showGenerateTrajectoryPage"/>
     <addaction name="a_showTranslation"/>
+    <addaction name="a_showGenerateStraightTrajectory"/>
    </widget>
    <addaction name="menu"/>
   </widget>
@@ -85,6 +87,11 @@
     <string>Сохранить траекторию</string>
    </property>
   </action>
+  <action name="a_showGenerateStraightTrajectory">
+   <property name="text">
+    <string>Сгенерировать прямую траекторию</string>
+   </property>
+  </action>
  </widget>
  <customwidgets>
   <customwidget>
@@ -103,6 +110,12 @@
    <class>TranslateTrajectoryOptions</class>
    <extends>QWidget</extends>
    <header>UI_Options.TranslateTrajectory_Options.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>GenerateStraightTrajectoryOptions</class>
+   <extends>QWidget</extends>
+   <header>UI_Options.GenerateStraightTrajectory_Options.h</header>
    <container>1</container>
   </customwidget>
  </customwidgets>
